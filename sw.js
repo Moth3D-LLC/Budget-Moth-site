@@ -1,6 +1,6 @@
 // Budget Moth service worker: lets the app open with no connection.
 // Bump VERSION when you publish a new index.html so devices refresh.
-const VERSION = 'budget-moth-v10';
+const VERSION = 'budget-moth-v12';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

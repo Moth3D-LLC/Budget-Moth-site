@@ -189,7 +189,7 @@ svg.chart text{pointer-events:none}
    Data lives in this browser (localStorage). Export for backups.
    ============================================================ */
 const KEY='budgetledger.v1';
-const APPV='9 (file picker + import feedback)';
+const APPV='11 (generic defaults)';
 const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const M3=MONTHS.map(m=>m.slice(0,3));
 const $=(s,el=document)=>el.querySelector(s);
@@ -220,29 +220,29 @@ function parseAmt(s){
 function defaults(){
   const G=[
     ['housing','Housing','expense'],['food','Food','expense'],['transport','Transportation','expense'],
-    ['lifestyle','Lifestyle','expense'],['debt','Debt','expense'],['giving','Giving','expense'],
-    ['instax','Insurance & Taxes','bucket'],['saved','Saved Budgets','bucket']];
-  const E=[ // id,name,group,budget,fixed
-    ['mortgage','Mortgage','housing',1387.43,1],['tracfone','Cellular','housing',30,1],['internet','Internet','housing',100,1],
-    ['water','Water/Electric','housing',300,0],['gas','Natural Gas','housing',100,0],['garbage','Garbage','housing',20,1],
-    ['otherhouse','Other House Purchases','housing',100,0],
-    ['groceries','Groceries','food',300,0],['restaurants','Restaurants','food',50,0],['snacks','Snacks','food',50,0],
+    ['lifestyle','Lifestyle','expense'],['debt','Other','expense'],['giving','Giving','expense'],
+    ['instax','Insurance & Taxes','bucket'],['saved','Savings Goals','bucket']];
+  const E=[ // id,name,group,budget,fixed  (ids stay the same as the original template so spreadsheet imports keep working)
+    ['mortgage','Rent / Mortgage','housing',1200,1],['tracfone','Cellular','housing',40,1],['internet','Internet','housing',70,1],
+    ['water','Water/Electric','housing',200,0],['gas','Natural Gas','housing',80,0],['garbage','Garbage','housing',25,1],
+    ['otherhouse','Household Items','housing',100,0],
+    ['groceries','Groceries','food',400,0],['restaurants','Restaurants','food',100,0],['snacks','Snacks','food',50,0],
     ['gasoil','Gas & Oil','transport',150,0],
-    ['clothing','Clothing','lifestyle',100,0],['hygiene','Hygiene','lifestyle',25,0],['spotify','Subscription','lifestyle',12.87,1],
+    ['clothing','Clothing','lifestyle',75,0],['hygiene','Hygiene','lifestyle',25,0],['spotify','Subscriptions','lifestyle',15,1],
     ['entertainment','Entertainment','lifestyle',100,0],['misc','Misc','lifestyle',50,0],
-    ['unplanned','Unplanned','debt',0,0],['hangout','Hangout Fund','debt',50,0],
-    ['tithing','Tithing','giving',850,1]];
+    ['unplanned','Unplanned','debt',0,0],['hangout','Fun Money','debt',50,0],
+    ['tithing','Donations','giving',100,0]];
   const B=[ // id,name,group,monthly target,account
-    ['propertytax','Property Tax','instax',400,'Money Market-1'],['houseins','House Insurance','instax',300,'Money Market-1'],
-    ['carins','Car Insurance','instax',100,'Money Market-1'],
-    ['efund','E-Fund','saved',0,'Money Market-1'],['computer','Computer Build','saved',100,'Checking'],
-    ['gun','Gun Build','saved',50,'Checking'],['carrepl','Car Replacement','saved',250,'Money Market-1'],
-    ['3dp','3D Printing','saved',50,'Checking'],['tradira','Traditional IRA','saved',0,'OTHER'],
-    ['rothira','Roth IRA','saved',100,'OTHER'],['tip','Vacation','saved',0,'Money Market-1'],
-    ['homeimp','Home Improvement','saved',250,'Checking']];
+    ['propertytax','Property Tax','instax',200,'Savings'],['houseins','Home Insurance','instax',100,'Savings'],
+    ['carins','Car Insurance','instax',100,'Savings'],
+    ['efund','Emergency Fund','saved',100,'Savings'],['computer','Tech Fund','saved',50,'Checking'],
+    ['gun','Hobby Fund','saved',50,'Checking'],['carrepl','Car Replacement','saved',100,'Savings'],
+    ['3dp','Project Fund','saved',50,'Checking'],['tradira','Traditional IRA','saved',0,'Retirement'],
+    ['rothira','Roth IRA','saved',100,'Retirement'],['tip','Vacation','saved',50,'Savings'],
+    ['homeimp','Home Improvement','saved',100,'Checking']];
   return {v:1,
     settings:{currency:'USD',expectedIncome:0,leftoverStart:0,leftoverAccount:'Checking',actual:{}},
-    accounts:['Checking','Money Market-1','OTHER'],
+    accounts:['Checking','Savings','Retirement'],
     groups:G.map(([id,name,kind])=>({id,name,kind})),
     cats:[...E.map(([id,name,group,budget,fixed])=>({id,name,kind:'expense',group,budget,fixed:!!fixed,ov:{}})),
           ...B.map(([id,name,group,budget,account])=>({id,name,kind:'bucket',group,budget,account,start:0,ov:{}}))],
@@ -1243,35 +1243,79 @@ function exportXLSX(){
 }
 
 /* ---------------- import ---------------- */
-const T_EXP={L:'mortgage',M:'tracfone',N:'internet',O:'water',P:'gas',Q:'garbage',R:'otherhouse',S:'groceries',T:'restaurants',U:'snacks',V:'gasoil',W:'clothing',X:'hygiene',Y:'spotify',Z:'entertainment',AA:'misc',AB:'unplanned',AC:'hangout'};
-const T_SAV={AE:'propertytax',AF:'houseins',AG:'carins',AI:'efund',AJ:'computer',AK:'gun',AL:'carrepl',AM:'3dp',AN:'tradira',AO:'rothira',AP:'tip',AQ:'homeimp'};
-const T_BUD={13:'mortgage',14:'tracfone',15:'internet',16:'water',17:'gas',18:'garbage',19:'otherhouse',21:'groceries',22:'restaurants',23:'snacks',25:'gasoil',27:'clothing',28:'hygiene',29:'spotify',30:'entertainment',31:'misc',33:'unplanned',34:'hangout'};
-const T_START=['propertytax','houseins','carins','efund','computer','gun','carrepl','3dp','tradira','rothira','tip','homeimp']; // Total Saved!B1:M1
 function dateOf(v){
   if(typeof v==='string'){const m=v.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return `${m[1]}-${m[2]}-${m[3]}`;const u=v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);if(u){let y=+u[3];if(y<100)y+=2000;return `${y}-${pad(u[1])}-${pad(u[2])}`}}
   else if(typeof v==='number'&&v>20000&&v<80000){const d=new Date(Math.round((v-25569)*86400000));return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`}
   return null;
 }
+/* Reads your spreadsheet by its column headings, not fixed column letters, so older and newer layouts both import. */
+const nn=x=>String(x??'').toLowerCase().replace(/\s+/g,' ').trim();
+function tplLookup(){
+  const m=new Map();
+  const alias={'mortgage':'mortgage','other house purchases':'otherhouse','hangout fund':'hangout','tithing':'tithing','house insurance':'houseins','e-fund':'efund','computer build':'computer','gun build':'gun','3d printing':'3dp','car replacement':'carrepl','home improvement':'homeimp','traditional ira':'tradira','tracfone':'tracfone','cellular':'tracfone','water/elec':'water','water':'water','electric':'water','gas':'gas','natural gas':'gas','other house':'otherhouse','spotify':'spotify','subscription':'spotify','subscriptions':'spotify','hangout':'hangout','computer':'computer','gun':'gun','car replace':'carrepl','3d':'3dp','trad ira':'tradira','tip to israel':'tip','israel trip':'tip','vacation':'tip','home improve':'homeimp'};
+  for(const k in alias)if(cat(alias[k]))m.set(k,alias[k]);
+  for(const c of state.cats)m.set(nn(c.name),c.id);
+  return h=>{const k=nn(h);if(!k)return null;if(m.has(k))return m.get(k);
+    if(k.length>=4)for(const c of state.cats){const n=nn(c.name);if(n.startsWith(k)||(n.length>=4&&k.startsWith(n)))return c.id}
+    return null};
+}
 function parseTemplate(sheets,year){
-  const tx=[],warn=[];let skipped=0;const ids=new Set(state.cats.map(c=>c.id));
-  const mkTx=(date,type,cid,amt,memo)=>{if(!ids.has(cid)){skipped++;return}tx.push({id:uid(),date,type,cat:cid,amt:r2(amt),memo})};
+  const tx=[],unknown={},find=tplLookup();let skipped=0;
+  const isNum=v=>typeof v==='number'&&isFinite(v);
+  const add=(date,type,cid,amt,memo)=>tx.push({id:uid(),date,type,cat:cid,amt:r2(amt),memo});
+  const colIdx=ref=>{let n=0;for(const ch of ref.replace(/\d+/g,''))n=n*26+ch.charCodeAt(0)-64;return n-1};
   MONTHS.forEach((mn,i)=>{
-    const ws=sheets[mn];if(!ws)return;const first=`${year}-${pad(i+1)}-01`;
-    for(let r=2;r<=4;r++){const v=ws['C'+r];if(typeof v==='number'&&v>0){const d=dateOf(ws['A'+r]);tx.push({id:uid(),date:d&&d.slice(0,7)===first.slice(0,7)?d:first,type:'income',cat:null,amt:r2(v),memo:ws['B'+r]||'Paycheck'})}}
-    for(const r of [5,6]){const v=ws['C'+r];if(typeof v==='number'&&v!==0)mkTx(first,'expense','tithing',-v,'Tithing')}
+    const ws=sheets[mn];if(!ws)return;const first=`${year}-${pad(i+1)}-01`,pre=first.slice(0,7);
+    const maxC=Math.max(45,...Object.keys(ws).map(colIdx).map(x=>x+1));
+    const row=(r,f)=>{for(let c=0;c<maxC;c++){const v=ws[colName(c)+r];if(v!==undefined)f(colName(c),v,c)}};
+    /* top-left block: Date? Memo, Gained, Budgeted */
+    const h1={};row(1,(L,v)=>{const k=nn(v);(h1[k]=h1[k]||[]).push(L)});
+    const memoC=(h1['memo']||['B'])[0],gainC=(h1['gained']||['C'])[0],dateC=(h1['date']||[])[0]||(memoC==='B'?'A':null);
+    const memoOf=r=>nn(ws[memoC+r]);
+    let titheAt=5;for(let r=2;r<=12;r++)if(memoOf(r)==='tithing'){titheAt=r;break}
+    for(let r=2;r<Math.min(titheAt,13);r++){const v=ws[gainC+r];if(isNum(v)&&v>0){const d=dateC?dateOf(ws[dateC+r]):null;add(d&&d.slice(0,7)===pre?d:first,'income',null,v,String(ws[memoC+r]||'Paycheck'))}}
+    for(let r=2;r<=12;r++){const v=ws[gainC+r];if(memoOf(r)==='tithing'&&isNum(v)&&v!==0&&cat('tithing'))add(first,'expense','tithing',-v,'Tithing')}
+    /* expense and savings columns, found by their row-2 headings */
+    const cols=[];let dateCol=null,firstCol=null;
+    row(2,(L,v,c)=>{
+      if(typeof v!=='string')return;
+      const id=find(v);
+      if(id&&cat(id)&&cat(id).kind){if(firstCol===null||c<firstCol)firstCol=c;cols.push([L,id,c])}
+    });
+    row(2,(L,v,c)=>{if(typeof v==='string'&&firstCol!==null&&c>firstCol&&nn(v)==='date'&&dateCol===null&&!cols.some(x=>x[0]===L))dateCol=L});
+    const known=new Set(cols.map(x=>x[0]));
     for(let r=3;r<=80;r++){
-      for(const col in T_EXP){const v=ws[col+r];if(typeof v==='number'&&v!==0)mkTx(first,'expense',T_EXP[col],-v,'')}
-      for(const col in T_SAV){const v=ws[col+r];if(typeof v==='number'&&v!==0)mkTx(first,'save',T_SAV[col],v,'')}
+      const rd=dateCol?dateOf(ws[dateCol+r]):null,rdate=rd&&rd.slice(0,7)===pre?rd:first;
+      for(const [L,id] of cols){const v=ws[L+r];if(!isNum(v)||v===0)continue;
+        if(cat(id).kind==='bucket')add(rdate,'save',id,v,'');else add(rdate,'expense',id,-v,'')}
     }
+    row(2,(L,v,c)=>{if(typeof v!=='string'||firstCol===null||c<=firstCol||known.has(L)||L===dateCol)return;
+      let n=0;for(let r=3;r<=80;r++){const x=ws[L+r];if(isNum(x)&&x!==0)n++}
+      if(n){unknown[v]=(unknown[v]||0)+n;skipped+=n}});
   });
+  /* budgets: the Budgeted column next to each category name on the first month */
   const budgets={};
   const jan=sheets['January']||sheets[MONTHS.find(m=>sheets[m])];
-  if(jan)for(const r in T_BUD){const d=jan['D'+r],c=jan['C'+r]??0;if(typeof d==='number'&&typeof c==='number'){const b=r2(d-c);if(b>=0)budgets[T_BUD[r]]=b}}
-  const starts={};let leftover=null;
+  if(jan){
+    const h1={};for(let c=0;c<12;c++){const v=jan[colName(c)+'1'];if(v!==undefined)h1[nn(v)]=h1[nn(v)]||colName(c)}
+    const memoC=h1['memo']||'B',gainC=h1['gained']||'C',budC=h1['budgeted']||'D';
+    for(let r=7;r<=60;r++){const id=find(jan[memoC+r]);const c=id&&cat(id);if(!c||c.kind!=='expense'||id==='tithing')continue;
+      const d=jan[budC+r],g=jan[gainC+r]??0;if(isNum(d)&&isNum(g)){const b=r2(d-g);if(b>=0)budgets[id]=b}}
+  }
+  /* starting balances and which account holds each bucket, from the "Total Saved" sheet */
+  const starts={},accts={};let leftover=null,yr=null;
   const ts=sheets['Total Saved'];
-  if(ts){T_START.forEach((id,i)=>{const v=ts[colName(1+i)+'1'];if(typeof v==='number')starts[id]=v});if(typeof ts['V1']==='number')leftover=ts['V1']}
-  let yr=null;if(ts){const d=dateOf(ts['A3']);if(d)yr=+d.slice(0,4)}
-  return {tx,budgets,starts,leftover,skipped,detectedYear:yr};
+  if(ts){
+    for(let c=1;c<30;c++){const L=colName(c),h=ts[L+'2'];if(typeof h!=='string')continue;
+      const id=find(h),b=id&&cat(id);
+      if(b&&b.kind==='bucket'&&isNum(ts[L+'1']))starts[id]=ts[L+'1'];
+      if(nn(h).startsWith('total left')&&isNum(ts[L+'1']))leftover=ts[L+'1'];}
+    if(leftover===null&&isNum(ts['V1']))leftover=ts['V1'];
+    for(let r=2;r<=60;r++){const id=find(ts['Q'+r]),b=id&&cat(id),a=ts['S'+r];
+      if(b&&b.kind==='bucket'&&typeof a==='string'&&a.trim())accts[id]=a.trim()}
+    for(let r=3;r<=80&&yr===null;r++){const d=dateOf(ts['A'+r]);if(d)yr=+d.slice(0,4)}
+  }
+  return {tx,budgets,starts,accts,leftover,skipped,unknown,detectedYear:yr};
 }
 function parseOwn(sheets){
   const rows=n=>toRows(sheets[n]||{}).slice(1);
@@ -1363,8 +1407,9 @@ async function importFile(file){
       const ynote=fnY&&shY&&+fnY!==shY?`<p class="note"><b>Check the year:</b> the file name says ${fnY} but the sheet's dates say ${shY}. Using ${fnY}.</p>`:(fnY?`<p class="note">Year taken from the file name.</p>`:shY?`<p class="note">Year taken from the sheet's dates.</p>`:`<p class="note"><b>Couldn't tell the year from this file.</b> Set it above before importing.</p>`);
       const run=(year)=>parseTemplate(sheets,year);
       let r=run(yr);
-      const body=(r)=>`<p>Found <b>${r.tx.length}</b> entries across ${MONTHS.filter(m=>sheets[m]).length} month sheets${r.skipped?` (${r.skipped} skipped: category no longer exists)`:''}.
+      const body=(r)=>`<p>Found <b>${r.tx.length}</b> entries across ${MONTHS.filter(m=>sheets[m]).length} month sheets${r.skipped?` (${r.skipped} numbers skipped)`:''}.
         ${Object.keys(r.budgets).length?`Budgets for ${Object.keys(r.budgets).length} categories and `:''}${Object.keys(r.starts).length?`starting balances `:''}will be read too.</p>
+        ${Object.keys(r.unknown).length?`<p class="note"><b>Skipped columns with numbers:</b> ${Object.entries(r.unknown).map(([k,n])=>esc(k)+' ('+n+')').join(', ')}. Add or rename a matching category first if you want them.</p>`:''}
         ${ynote}<p class="note">Your spreadsheet has no dates on entries, so each one is dated the 1st of its month. You can edit dates afterwards in the Ledger.</p>`;
       return openDlg(`<h2>Import spreadsheet</h2><form><label class="f" for="i-y">Year of this spreadsheet</label><input id="i-y" name="y" type="number" value="${yr}" style="max-width:140px"><div id="i-body" style="margin-top:12px">${body(r)}</div>
         <label class="row" style="margin-top:10px"><input type="checkbox" name="rep" checked> <span>Replace existing entries for that year</span></label>
@@ -1380,6 +1425,7 @@ async function importFile(file){
             for(const id in r2_.budgets){const c=cat(id);if(c)c.budget=r2_.budgets[id]}
             for(const id in r2_.starts){const c=cat(id);if(c)c.start=r2_.starts[id]}
             if(r2_.leftover!==null)state.settings.leftoverStart=r2_.leftover;
+            for(const id in r2_.accts){const c=cat(id);if(c){if(!state.accounts.includes(r2_.accts[id]))state.accounts.push(r2_.accts[id]);c.account=r2_.accts[id]}}
           }
           commit();closeDlg();ui.month=`${year}-${pad(new Date().getMonth()+1)}`;if(!state.tx.some(t=>mk(t.date)===ui.month)){const ds=state.tx.map(t=>t.date).sort();if(ds.length)ui.month=mk(ds[ds.length-1])}
           ui.tab='month';render();toast(`Imported ${r2_.tx.length} entries`);
@@ -1542,10 +1588,10 @@ function openCompany(key){
   const o=old||{cat:'',name:'',skip:false};
   openDlg(`<h2>${old?'Edit company':'Add company'}</h2><form>
     <label class="f" for="c-key">Bank description contains</label>
-    <input id="c-key" name="key" type="text" value="${esc(key||'')}" placeholder="kwik trip" ${old?'':'autofocus'}>
-    <p class="note">Numbers and store codes are ignored, so “KWIK TRIP #412” and “KWIK TRIP #977” both match “kwik trip”.</p>
+    <input id="c-key" name="key" type="text" value="${esc(key||'')}" placeholder="corner market" ${old?'':'autofocus'}>
+    <p class="note">Numbers and store codes are ignored, so “CORNER MARKET #412” and “CORNER MARKET #977” both match “corner market”.</p>
     <label class="f" for="c-name" style="margin-top:12px">Show as <span class="mute">(optional)</span></label>
-    <input id="c-name" name="name" type="text" value="${esc(o.name||'')}" placeholder="Kwik Trip">
+    <input id="c-name" name="name" type="text" value="${esc(o.name||'')}" placeholder="Corner Market">
     <label class="f" for="c-cat" style="margin-top:12px">Default budget category</label>
     <select id="c-cat" name="cat">${catOptions('expense',o.cat)}</select>
     <label class="row" style="margin-top:12px"><input type="checkbox" name="skip" ${o.skip?'checked':''}> <span>Always skip when importing (card payments, transfers)</span></label>
@@ -1898,7 +1944,7 @@ function bankReview(data,cfg){
    ${inc.length?`<label class="row" style="margin-top:12px"><input type="checkbox" name="inc" checked> <span>Import ${inc.length} deposit${inc.length>1?'s':''} (${fmt(incTotal)}) as income</span></label>`:''}
    ${dups?`<label class="row" style="margin-top:8px"><input type="checkbox" name="dups"> <span>Also import ${dups} row${dups>1?'s':''} that look already entered (same date and amount)</span></label>`:''}
    <label class="row" style="margin-top:8px"><input type="checkbox" name="learn" checked> <span>Remember these companies for next time</span></label>
-   <p class="note" style="margin:2px 0 0 28px">Tip: type the plain company name (like Kwik Trip) so every location matches.</p>
+   <p class="note" style="margin:2px 0 0 28px">Tip: type the plain company name (like Corner Market) so every location matches.</p>
    <div class="actions"><button type="button" class="btn ghost" data-d="cancel">Cancel</button><button class="btn" type="submit">Import</button></div></form>`,{
     cancel:closeDlg,
     submit(fd){
