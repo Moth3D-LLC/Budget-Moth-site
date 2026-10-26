@@ -833,7 +833,7 @@ function viewMore(){
   ${receiptsSection()}
   <section class="sheet"><h2>Import and export</h2>
     <p class="note" style="margin:0 0 10px">Import your spreadsheet (.ods or .xlsx in the original layout), a backup file, or a bank CSV or Excel statement. Last backup: ${esc(last)}.</p>
-    <div class="row"><label class="btn" for="imp" style="display:inline-flex;align-items:center">Import file…</label><input id="imp" type="file" accept=".ods,.xlsx,.csv,.json" hidden>
+    <div class="row"><label class="btn" for="imp" style="display:inline-flex;align-items:center">Import file…</label><input id="imp" type="file" multiple hidden>
     <button class="btn alt" data-act="xlsx">Export Excel (.xlsx)</button><button class="btn alt" data-act="csv">Export entries (.csv)</button><button class="btn alt" data-act="backup">Export backup (.json${RC.size?`, with ${RC.size} receipt${RC.size>1?'s':''}`:''})</button></div>
     <p class="note">The Excel export has a monthly summary with working formulas, savings balances, and every entry. You can re-import it later.</p></section>
   ${merchantsSection()}
@@ -1323,6 +1323,14 @@ function parseGeneric(cells){
   }
   return {tx,newCats:[...newCats]};
 }
+/* several files at once: they open one after another, each with its own preview */
+let IMPQ=[],IMPN=0,IMPTOT=0;
+function startImports(fs){IMPQ=fs.slice();IMPTOT=fs.length;IMPN=0;nextImport()}
+async function nextImport(){
+  const f=IMPQ.shift();if(!f)return;IMPN++;
+  await importFile(f);
+  if(IMPTOT>1&&dlg.open)dlg.insertAdjacentHTML('afterbegin',`<p class="note" style="margin:0 0 6px">File ${IMPN} of ${IMPTOT}: <b>${esc(f.name)}</b></p>`);
+}
 async function importFile(file){
   try{
     const name=file.name.toLowerCase();
@@ -1348,12 +1356,14 @@ async function importFile(file){
     }
     if(MONTHS.some(m=>sheets[m])){
       const guess=parseTemplate(sheets,new Date().getFullYear());
-      const yr=guess.detectedYear||new Date().getFullYear();
+      const fnY=(String(file.name).match(/(?:^|\D)(20\d{2}|19\d{2})(?:\D|$)/)||[])[1],shY=guess.detectedYear;
+      const yr=+fnY||shY||new Date().getFullYear();
+      const ynote=fnY&&shY&&+fnY!==shY?`<p class="note"><b>Check the year:</b> the file name says ${fnY} but the sheet's dates say ${shY}. Using ${fnY}.</p>`:(fnY?`<p class="note">Year taken from the file name.</p>`:shY?`<p class="note">Year taken from the sheet's dates.</p>`:`<p class="note"><b>Couldn't tell the year from this file.</b> Set it above before importing.</p>`);
       const run=(year)=>parseTemplate(sheets,year);
       let r=run(yr);
       const body=(r)=>`<p>Found <b>${r.tx.length}</b> entries across ${MONTHS.filter(m=>sheets[m]).length} month sheets${r.skipped?` (${r.skipped} skipped: category no longer exists)`:''}.
         ${Object.keys(r.budgets).length?`Budgets for ${Object.keys(r.budgets).length} categories and `:''}${Object.keys(r.starts).length?`starting balances `:''}will be read too.</p>
-        <p class="note">Your spreadsheet has no dates on entries, so each one is dated the 1st of its month. You can edit dates afterwards in the Ledger.</p>`;
+        ${ynote}<p class="note">Your spreadsheet has no dates on entries, so each one is dated the 1st of its month. You can edit dates afterwards in the Ledger.</p>`;
       return openDlg(`<h2>Import spreadsheet</h2><form><label class="f" for="i-y">Year of this spreadsheet</label><input id="i-y" name="y" type="number" value="${yr}" style="max-width:140px"><div id="i-body" style="margin-top:12px">${body(r)}</div>
         <label class="row" style="margin-top:10px"><input type="checkbox" name="rep" checked> <span>Replace existing entries for that year</span></label>
         <label class="row" style="margin-top:6px"><input type="checkbox" name="bud" checked> <span>Use the budgets and starting balances from the file</span></label>
@@ -1389,7 +1399,7 @@ async function importFile(file){
         for(const t of gg.tx){if(t.cat&&t.cat.startsWith('NEW:'))t.cat=map[t.cat.slice(4)];state.tx.push(t)}
         commit();closeDlg();ui.tab='ledger';ui.led.m='all';render();toast(`Added ${gg.tx.length} entries`)}});
   }catch(err){
-    openDlg(`<h2>Couldn't import that file</h2><p>${esc(err.message||err)}</p><div class="actions"><button class="btn" data-d="cancel">OK</button></div>`,{cancel:closeDlg});
+    openDlg(`<h2>Couldn't import ${esc(file.name||'that file')}</h2><p>${esc(err.message||err)}</p><div class="actions"><button class="btn" data-d="cancel">OK</button></div>`,{cancel:closeDlg});
   }
 }
 
@@ -2031,7 +2041,7 @@ app.addEventListener('change',e=>{
   if(d.led&&d.led!=='q'){ui.led[d.led]=el.value;ui.led.limit=150;render();return}
   if(d.actual!==undefined){const v=el.value.trim();const a=state.settings.actual=state.settings.actual||{};if(v===''||isNaN(parseAmt(v)))delete a[d.actual];else a[d.actual]=r2(parseAmt(v));commit();render();return}
   if(el.id==='theme'){const v=el.value;if(v)document.documentElement.dataset.theme=v;else delete document.documentElement.dataset.theme;try{localStorage.setItem(KEY+'.theme',v)}catch(x){}return}
-  if(el.id==='imp'){const f=el.files[0];el.value='';if(f)importFile(f);return}
+  if(el.id==='imp'){const fs=[...el.files];if(fs.length){toast('Reading '+(fs.length>1?fs.length+' files':fs[0].name)+'…');startImports(fs);setTimeout(()=>{el.value=''},0)}return}
   if(d.s){
     if(d.s==='set'){const f=d.f;state.settings[f]=(f==='currency')?(el.value.trim().toUpperCase()||'USD'):(f==='leftoverAccount')?el.value:r2(num(el.value))}
     else if(d.s==='grp'){const g=group(d.id);g.name=el.value.trim()||g.name}
@@ -2057,7 +2067,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 addEventListener('focus',syncSoon);addEventListener('online',()=>syncCycle());
 addEventListener('pagehide',()=>{if(SYNC.t){clearTimeout(SYNC.t);syncCycle()}});
 setInterval(()=>{if(document.visibilityState==='visible')syncSoon()},45000);
-dlg.addEventListener('close',flushRender);app.addEventListener('focusout',()=>setTimeout(flushRender,60));
+dlg.addEventListener('close',()=>{flushRender();if(IMPQ.length)setTimeout(nextImport,150)});app.addEventListener('focusout',()=>setTimeout(flushRender,60));
 if('serviceWorker' in navigator&&hosted())navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
