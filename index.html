@@ -189,7 +189,7 @@ svg.chart text{pointer-events:none}
    Data lives in this browser (localStorage). Export for backups.
    ============================================================ */
 const KEY='budgetledger.v1';
-const APPV='11 (generic defaults)';
+const APPV='12';
 const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const M3=MONTHS.map(m=>m.slice(0,3));
 const $=(s,el=document)=>el.querySelector(s);
@@ -500,7 +500,7 @@ function viewAdd(){
       <div><label class="f" for="d-memo">${d.type==='income'?'Source':'Note'} <span class="mute">(optional)</span></label><input id="d-memo" type="text" list="memos" data-draft="memo" value="${esc(d.memo)}" placeholder="${d.type==='income'?'Paycheck':''}"></div>
     </div>
     <datalist id="memos">${memoList()}</datalist>
-    <div class="row" style="margin-top:12px"><label class="btn sm alt" for="d-rc" style="display:inline-flex;align-items:center">${ui.rcDraft?'Replace receipt':'Attach receipt'}</label><input id="d-rc" type="file" accept="image/*" hidden data-rc="draft">${ui.rcDraft?`<span class="mute" style="font-size:.88rem">Photo attached</span><button type="button" class="btn sm ghost" data-act="rcdraftx">Remove</button>`:''}</div>
+    <div class="row" style="margin-top:12px"><button type="button" class="btn sm alt" data-act="pickrc">${ui.rcDraft?'Replace receipt':'Attach receipt'}</button>${ui.rcDraft?`<span class="mute" style="font-size:.88rem">Photo attached</span><button type="button" class="btn sm ghost" data-act="rcdraftx">Remove</button>`:''}</div>
     <p class="err" id="d-err" role="alert">${esc(ui.err)}</p>
     <div class="row"><button class="btn grow" type="submit">Add ${TYPE_LABEL[d.type].toLowerCase()}</button>
     <button class="btn alt" type="button" data-act="plan">Add monthly bills…</button></div>
@@ -834,7 +834,8 @@ function viewMore(){
   ${receiptsSection()}
   <section class="sheet"><h2>Import and export</h2>
     <p class="note" style="margin:0 0 10px">Import your spreadsheet (.ods or .xlsx in the original layout), a backup file, or a bank CSV or Excel statement. Last backup: ${esc(last)}.</p>
-    <div class="row"><label class="btn" for="imp" style="display:inline-flex;align-items:center">Import file…</label><input id="imp" type="file" multiple hidden>
+    ${IMPLOG?`<p class="note" style="margin:0 0 10px"><b>Last import activity:</b> ${esc(IMPLOG)}</p>`:''}
+    <div class="row"><button type="button" class="btn" data-act="pickimport">Import file…</button>
     <button class="btn alt" data-act="xlsx">Export Excel (.xlsx)</button><button class="btn alt" data-act="csv">Export entries (.csv)</button><button class="btn alt" data-act="backup">Export backup (.json${RC.size?`, with ${RC.size} receipt${RC.size>1?'s':''}`:''})</button></div>
     <p class="note">The Excel export has a monthly summary with working formulas, savings balances, and every entry. You can re-import it later.</p></section>
   ${merchantsSection()}
@@ -903,16 +904,16 @@ function openEdit(id,dr){
     <label class="f" for="e-amt" style="margin-top:12px">Amount</label><input id="e-amt" name="amt" type="text" inputmode="decimal" value="${esc(D.amt)}">
     <div id="e-catw">${catw(D.type,D.cat)}</div>
     <div class="grid2" style="margin-top:12px"><div><label class="f" for="e-date">Date</label><input id="e-date" name="date" type="date" value="${esc(D.date)}"></div><div><label class="f" for="e-memo">Note</label><input id="e-memo" name="memo" type="text" value="${esc(D.memo)}"></div></div>
-    <div id="e-rc" style="margin-top:12px">${rcBlock(id)}</div><input id="e-rcf" type="file" accept="image/*" hidden data-rc="edit">
+    <div id="e-rc" style="margin-top:12px">${rcBlock(id)}</div>
     <p class="err" id="e-err" role="alert"></p>
     <div class="actions"><button type="button" class="btn danger" data-d="del" style="margin-right:auto">Delete</button><button type="button" class="btn ghost" data-d="cancel">Cancel</button><button class="btn" type="submit">Save changes</button></div></form>`,{
     cancel:closeDlg,
     del(){const gone=removeTx(id);closeDlg();render();toast('Entry deleted',()=>{state.tx.push(gone);commit();render()})},
     rcview(){openReceipt(id,()=>openEdit(id,D))},
+    rcpick(){pickFiles(fs=>attachReceipt(id,fs[0]).then(()=>{const w=$('#e-rc');if(w){w.innerHTML=rcBlock(id);hydrateRc(dlg)}render()}),{accept:'image/*'})},
     rcdel(){rcDel(id).then(()=>{$('#e-rc').innerHTML=rcBlock(id);render()}).catch(()=>{})},
     change(el){
       if(el.dataset.ef==='type'){D.type=el.value;if(D.type!=='expense')D.splits=null;$('#e-catw').innerHTML=catw(D.type,'')}
-      else if(el.dataset.rc==='edit'){const f=el.files[0];el.value='';if(f)attachReceipt(id,f).then(()=>{const w=$('#e-rc');if(w){w.innerHTML=rcBlock(id);hydrateRc(dlg)}render()})}
     },
     split(){
       const amt=parseAmt($('#e-amt').value);
@@ -961,8 +962,8 @@ async function attachReceipt(id,file){
 }
 function rcBlock(id){
   return RC.has(id)
-    ?`<label class="f">Receipt</label><div class="row" style="flex-wrap:nowrap"><button type="button" class="rcthumb" data-d="rcview" aria-label="View receipt"><img data-rcimg="${id}" alt="Receipt photo"></button><div class="row"><label class="btn sm alt" for="e-rcf" style="display:inline-flex;align-items:center">Replace</label><button type="button" class="btn sm danger" data-d="rcdel">Remove</button></div></div>`
-    :`<label class="btn sm alt" for="e-rcf" style="display:inline-flex;align-items:center">Attach receipt photo</label>`;
+    ?`<label class="f">Receipt</label><div class="row" style="flex-wrap:nowrap"><button type="button" class="rcthumb" data-d="rcview" aria-label="View receipt"><img data-rcimg="${id}" alt="Receipt photo"></button><div class="row"><button type="button" class="btn sm alt" data-d="rcpick">Replace</button><button type="button" class="btn sm danger" data-d="rcdel">Remove</button></div></div>`
+    :`<button type="button" class="btn sm alt" data-d="rcpick">Attach receipt photo</button>`;
 }
 const RCURLS=[];
 async function hydrateRc(root){
@@ -1369,12 +1370,26 @@ function parseGeneric(cells){
   }
   return {tx,newCats:[...newCats]};
 }
+/* File pickers are created on demand and live outside the page area that redraws.
+   Phones redraw the page when the picker closes, which used to throw the chosen file away. */
+let IMPLOG='';
+const logImp=m=>{IMPLOG=new Date().toLocaleTimeString()+'  '+m;try{localStorage.setItem(KEY+'.implog',IMPLOG)}catch(e){}};
+try{IMPLOG=localStorage.getItem(KEY+'.implog')||''}catch(e){}
+function pickFiles(cb,opts={}){
+  document.querySelectorAll('input[data-picker]').forEach(x=>x.remove());
+  const i=document.createElement('input');i.type='file';i.dataset.picker='1';
+  if(opts.multiple)i.multiple=true;if(opts.accept)i.accept=opts.accept;
+  i.style.cssText='position:fixed;left:-9999px;top:0;opacity:0;width:1px;height:1px';
+  document.body.appendChild(i);
+  i.addEventListener('change',()=>{const fs=[...i.files];setTimeout(()=>i.remove(),60000);if(fs.length)cb(fs)});
+  i.click();
+}
 /* several files at once: they open one after another, each with its own preview */
 let IMPQ=[],IMPN=0,IMPTOT=0;
-function startImports(fs){IMPQ=fs.slice();IMPTOT=fs.length;IMPN=0;nextImport()}
+function startImports(fs){logImp('picked '+fs.map(f=>f.name+' ('+Math.round(f.size/1024)+' KB)').join(', '));toast('Reading '+(fs.length>1?fs.length+' files':fs[0].name)+'…');IMPQ=fs.slice();IMPTOT=fs.length;IMPN=0;nextImport()}
 async function nextImport(){
   const f=IMPQ.shift();if(!f)return;IMPN++;
-  await importFile(f);
+  try{await importFile(f);logImp('opened preview for '+f.name)}catch(e){logImp('failed on '+f.name+': '+(e&&e.message||e))}
   if(IMPTOT>1&&dlg.open)dlg.insertAdjacentHTML('afterbegin',`<p class="note" style="margin:0 0 6px">File ${IMPN} of ${IMPTOT}: <b>${esc(f.name)}</b></p>`);
 }
 async function importFile(file){
@@ -2037,6 +2052,8 @@ app.addEventListener('click',e=>{
     case'plan':openPlan();break;
     case'more':ui.led.limit+=150;render();break;
     case'backup':exportJSON();break;
+    case'pickimport':pickFiles(startImports,{multiple:true});break;
+    case'pickrc':pickFiles(fs=>shrinkPhoto(fs[0]).then(b=>{ui.rcDraft=b;render()}).catch(x=>toast(x&&x.message||'Could not read that picture.')),{accept:'image/*'});break;
     case'bklater':PREFS.snooze=Date.now()+864e5;savePrefs();render();break;
     case'brk':ui.brk=b.dataset.v;render();break;
     case'trend':{const ks=M3.map((_,i)=>`${ui.month.slice(0,4)}-${pad(i+1)}`),av=trendAvail(ks);let sel=trendSel(ks,av);
@@ -2084,12 +2101,10 @@ app.addEventListener('input',e=>{
 app.addEventListener('change',e=>{
   const el=e.target,d=el.dataset;
   if(d.draft==='cat'){ui.draft.cat=el.value;render();return}
-  if(d.rc==='draft'){const f=el.files[0];el.value='';if(f)shrinkPhoto(f).then(b=>{ui.rcDraft=b;render()}).catch(x=>toast(x&&x.message||'Could not read that picture.'));return}
   if(el.id==='bk-days'){PREFS.backupDays=+el.value;savePrefs();render();return}
   if(d.led&&d.led!=='q'){ui.led[d.led]=el.value;ui.led.limit=150;render();return}
   if(d.actual!==undefined){const v=el.value.trim();const a=state.settings.actual=state.settings.actual||{};if(v===''||isNaN(parseAmt(v)))delete a[d.actual];else a[d.actual]=r2(parseAmt(v));commit();render();return}
   if(el.id==='theme'){const v=el.value;if(v)document.documentElement.dataset.theme=v;else delete document.documentElement.dataset.theme;try{localStorage.setItem(KEY+'.theme',v)}catch(x){}return}
-  if(el.id==='imp'){const fs=[...el.files];if(fs.length){toast('Reading '+(fs.length>1?fs.length+' files':fs[0].name)+'…');startImports(fs);setTimeout(()=>{el.value=''},0)}return}
   if(d.s){
     if(d.s==='set'){const f=d.f;state.settings[f]=(f==='currency')?(el.value.trim().toUpperCase()||'USD'):(f==='leftoverAccount')?el.value:r2(num(el.value))}
     else if(d.s==='grp'){const g=group(d.id);g.name=el.value.trim()||g.name}
