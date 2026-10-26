@@ -189,6 +189,7 @@ svg.chart text{pointer-events:none}
    Data lives in this browser (localStorage). Export for backups.
    ============================================================ */
 const KEY='budgetledger.v1';
+const APPV='9 (file picker + import feedback)';
 const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const M3=MONTHS.map(m=>m.slice(0,3));
 const $=(s,el=document)=>el.querySelector(s);
@@ -839,6 +840,7 @@ function viewMore(){
   ${merchantsSection()}
   ${installSection()}
   <section class="sheet"><h2>Appearance and reset</h2>
+    <p class="note" style="margin:0 0 8px">Budget Moth app version: <b>${APPV}</b></p>
     <div class="row"><select id="theme" style="width:auto" data-act="theme" aria-label="Theme"><option value="">Match device</option><option value="light" ${document.documentElement.dataset.theme==='light'?'selected':''}>Light</option><option value="dark" ${document.documentElement.dataset.theme==='dark'?'selected':''}>Dark</option></select>
     <button class="btn danger" data-act="clear">Delete all entries</button><button class="btn danger" data-act="reset">Reset everything</button></div></section>`;
 }
@@ -2058,6 +2060,7 @@ app.addEventListener('change',e=>{
     if(d.f==='group'||d.f==='leftoverAccount'||d.s==='acct'||d.f==='pct'||d.f==='roll')render();
   }
 });
+addEventListener('error',e=>{try{toast('Something went wrong: '+(e.message||'unknown error'))}catch(x){}});addEventListener('unhandledrejection',e=>{try{toast('Something went wrong: '+((e.reason&&e.reason.message)||e.reason||'unknown error'))}catch(x){}});
 try{const th=localStorage.getItem(KEY+'.theme');if(th)document.documentElement.dataset.theme=th}catch(e){}
 try{localStorage.setItem(KEY+'.t','1');localStorage.removeItem(KEY+'.t')}catch(e){storageOK=false}
 render();
